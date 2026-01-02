@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+// Pastikan API Key sudah benar di .env.local
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
 
-// Daftar prioritas model sesuai request kamu.
-// Kode akan mencoba dari atas ke bawah.
 const PRIORITY_MODELS = [
   "models/gemini-3-pro-preview",
   "models/gemini-3-flash-preview",
@@ -24,21 +23,33 @@ export async function POST(req: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const base64Image = Buffer.from(arrayBuffer).toString('base64');
     
+    // --- PERBAIKAN PROMPT ---
     const prompt = `
-      Overlay the image with hand-drawn red-ink annotations, scribbles, arrows, and margin notes.
-      Tone: sharp, sarcastic, slightly mean, but genuinely funny.
-      Voice: a veteran, no-BS expert in [your field] who has seen this mistake a thousand times.
-      Critique should be insightful, technically accurate, and ruthless, but still entertaining.
-      Style it like a real expert marking up a bad draft, not a meme
+      Act as a visual analyzer. Generate TEXT annotations for a LinkedIn profile roast.
+      
+      CORE INSTRUCTION:
+      "Overlay the image with hand-drawn red-ink annotations. Tone: sharp, sarcastic, slightly mean, but genuinely funny. Voice: a veteran, no-BS expert in recruitment/tech."
+
+      STRICT OUTPUT RULES (Follow these exactly to avoid formatting errors):
+      1. Generate 8 to 12 short, biting annotations.
+      2. PLAIN TEXT ONLY. Do NOT use Markdown (no **bold**, no headers).
+      3. NO BULLET POINTS, NO DASHES, NO HYPHENS at the start of lines. 
+      4. START every line IMMEDIATELY with one of these tags: [ARROW], [STRIKE], [NOTE].
+      5. Language: ENGLISH ONLY.
+      6. Keep each annotation SHORT (max 10-15 words).
+
+      CORRECT OUTPUT EXAMPLE:
+      [ARROW] This tie screams "I sell used cars", not "CEO".
+      [STRIKE] "Visionary" -> Just say "Unemployed".
+      [NOTE] The background is messy. Clean your room.
+      [ARROW] Generic banner image. Zero effort detected.
     `;
 
-    // --- LOGIKA LOOPING MODEL ---
     let lastError = null;
     let successText = "";
 
     for (const modelName of PRIORITY_MODELS) {
       try {
-        console.log(`Mencoba model: ${modelName}...`);
         const model = genAI.getGenerativeModel({ model: modelName });
         
         const result = await model.generateContent([
@@ -52,19 +63,16 @@ export async function POST(req: NextRequest) {
         ]);
         
         successText = result.response.text();
-        console.log(`✅ Berhasil menggunakan model: ${modelName}`);
-        break; // Stop loop jika berhasil
+        if (successText) break;
 
       } catch (err: any) {
-        console.warn(`❌ Gagal dengan model ${modelName}:`, err.message);
+        console.warn(`Model ${modelName} failed:`, err.message);
         lastError = err;
-        // Lanjut ke model berikutnya di list...
       }
     }
 
-    // Jika semua model gagal
     if (!successText) {
-      throw new Error(`Semua model gagal. Error terakhir: ${lastError?.message}`);
+      throw new Error(`AI Error: ${lastError?.message}`);
     }
 
     return NextResponse.json({ roast: successText });

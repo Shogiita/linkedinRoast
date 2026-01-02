@@ -5,22 +5,28 @@ import { signInWithPopup, signOut, onAuthStateChanged, User } from "firebase/aut
 import Image from 'next/image';
 import { auth, googleProvider } from '@/lib/firebaseClient';
 
+// Type untuk annotation
+type AnnotationType = 'ARROW' | 'CIRCLE' | 'UNDERLINE' | 'MARGIN' | 'STRIKETHROUGH' | 'BIG X';
+
+interface Annotation {
+  type: AnnotationType;
+  text: string;
+  x: number;
+  y: number;
+  rotation: number;
+  fontSize: number;
+}
+
 export default function Home() {
-  // Auth States
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [error, setError] = useState('');
-
-  // App States
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isRoasting, setIsRoasting] = useState(false);
   const [roastText, setRoastText] = useState<string | null>(null);
-  
-  // Canvas Ref
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Load Google Font untuk efek "Marker"
   useEffect(() => {
     const link = document.createElement('link');
     link.href = 'https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap';
@@ -28,7 +34,6 @@ export default function Home() {
     document.head.appendChild(link);
   }, []);
 
-  // 1. Auth Check
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser: User | null) => {
       setUser(currentUser);
@@ -37,7 +42,6 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
-  // 2. Login
   const handleLogin = async () => {
     try {
       setError('');
@@ -47,7 +51,6 @@ export default function Home() {
     }
   };
 
-  // 3. Logout
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -59,7 +62,6 @@ export default function Home() {
     }
   };
 
-  // 4. File Select
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -75,28 +77,6 @@ export default function Home() {
     }
   };
 
-  // 5. Drawing Helpers
-  // Fungsi untuk memecah teks panjang menjadi baris-baris
-  const getLines = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number) => {
-    const words = text.split(" ");
-    const lines = [];
-    let currentLine = words[0];
-
-    for (let i = 1; i < words.length; i++) {
-        const word = words[i];
-        const width = ctx.measureText(currentLine + " " + word).width;
-        if (width < maxWidth) {
-            currentLine += " " + word;
-        } else {
-            lines.push(currentLine);
-            currentLine = word;
-        }
-    }
-    lines.push(currentLine);
-    return lines;
-  };
-
-  // 6. FUNGSI UTAMA: Proses Roasting
   const handleRoastProcess = async () => {
     if (!selectedFile) return;
 
@@ -133,11 +113,138 @@ export default function Home() {
     }
   };
 
-  // 7. Effect: Menggambar Hasil di Canvas
+  // Parse annotations dari text AI
+  const parseAnnotations = (text: string, imgWidth: number, imgHeight: number): Annotation[] => {
+    const annotations: Annotation[] = [];
+    const lines = text.split('\n').filter(l => l.trim());
+    
+    const padding = imgWidth * 0.05;
+    const usableWidth = imgWidth - (padding * 2);
+    const usableHeight = imgHeight - (padding * 2);
+    
+    lines.forEach((line, index) => {
+      let type: AnnotationType = 'MARGIN';
+      let cleanText = line;
+      
+      // Detect annotation type
+      if (line.includes('[ARROW→]') || line.includes('[ARROW]')) {
+        type = 'ARROW';
+        cleanText = line.replace(/\[ARROW[→]?\]/gi, '').trim();
+      } else if (line.includes('[CIRCLE]')) {
+        type = 'CIRCLE';
+        cleanText = line.replace(/\[CIRCLE\]/gi, '').trim();
+      } else if (line.includes('[UNDERLINE]')) {
+        type = 'UNDERLINE';
+        cleanText = line.replace(/\[UNDERLINE\]/gi, '').trim();
+      } else if (line.includes('[MARGIN]')) {
+        type = 'MARGIN';
+        cleanText = line.replace(/\[MARGIN\]/gi, '').trim();
+      } else if (line.includes('[STRIKETHROUGH]')) {
+        type = 'STRIKETHROUGH';
+        cleanText = line.replace(/\[STRIKETHROUGH\]/gi, '').trim();
+      } else if (line.includes('[BIG X]')) {
+        type = 'BIG X';
+        cleanText = line.replace(/\[BIG X\]/gi, '').trim();
+      }
+      
+      // Random positioning dengan slight variation
+      const baseY = padding + (index * usableHeight / lines.length);
+      const randomY = baseY + (Math.random() - 0.5) * 60;
+      
+      let x = padding;
+      // Margin notes go to the right side sometimes
+      if (type === 'MARGIN' && Math.random() > 0.5) {
+        x = imgWidth - padding - 200;
+      } else {
+        x = padding + Math.random() * (usableWidth * 0.3);
+      }
+      
+      // Font size variation based on type
+      const baseFontSize = Math.max(20, Math.floor(imgWidth / 40));
+      let fontSize = baseFontSize;
+      if (type === 'CIRCLE' || type === 'BIG X') fontSize *= 1.3;
+      if (type === 'MARGIN') fontSize *= 0.9;
+      
+      // Slight rotation for hand-drawn effect
+      const rotation = (Math.random() - 0.5) * 0.08; // -0.04 to 0.04 radians (~2-3 degrees)
+      
+      annotations.push({
+        type,
+        text: cleanText,
+        x: Math.max(padding, Math.min(x, imgWidth - padding)),
+        y: Math.max(padding, Math.min(randomY, imgHeight - padding - 50)),
+        rotation,
+        fontSize
+      });
+    });
+    
+    return annotations;
+  };
+
+  // Draw arrow
+  const drawArrow = (ctx: CanvasRenderingContext2D, fromX: number, fromY: number, toX: number, toY: number) => {
+    const headlen = 15;
+    const angle = Math.atan2(toY - fromY, toX - fromX);
+    
+    ctx.beginPath();
+    ctx.moveTo(fromX, fromY);
+    ctx.lineTo(toX, toY);
+    ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
+    ctx.moveTo(toX, toY);
+    ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
+    ctx.stroke();
+  };
+
+  // Draw circle annotation
+  const drawCircle = (ctx: CanvasRenderingContext2D, x: number, y: number, radius: number) => {
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+  };
+
+  // Draw underline with wobble
+  const drawUnderline = (ctx: CanvasRenderingContext2D, x: number, y: number, width: number) => {
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    for (let i = 0; i <= width; i += 5) {
+      ctx.lineTo(x + i, y + Math.sin(i * 0.1) * 2);
+    }
+    ctx.stroke();
+  };
+
+  // Draw X mark
+  const drawX = (ctx: CanvasRenderingContext2D, x: number, y: number, size: number) => {
+    ctx.beginPath();
+    ctx.moveTo(x - size, y - size);
+    ctx.lineTo(x + size, y + size);
+    ctx.moveTo(x + size, y - size);
+    ctx.lineTo(x - size, y + size);
+    ctx.stroke();
+  };
+
+  // Wrap text
+  const wrapText = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] => {
+    const words = text.split(' ');
+    const lines: string[] = [];
+    let currentLine = words[0];
+
+    for (let i = 1; i < words.length; i++) {
+      const word = words[i];
+      const width = ctx.measureText(currentLine + " " + word).width;
+      if (width < maxWidth) {
+        currentLine += " " + word;
+      } else {
+        lines.push(currentLine);
+        currentLine = word;
+      }
+    }
+    lines.push(currentLine);
+    return lines;
+  };
+
+  // Main canvas rendering effect
   useEffect(() => {
-    // Pastikan font sudah load sebelum menggambar (sedikit delay hack, idealnya pakai document.fonts.ready)
     if (roastText && selectedFile && canvasRef.current) {
-      // Tunggu sebentar agar font Patrick Hand terload
       document.fonts.ready.then(() => {
         const canvas = canvasRef.current;
         if(!canvas) return;
@@ -148,70 +255,128 @@ export default function Home() {
         img.src = URL.createObjectURL(selectedFile);
         
         img.onload = () => {
-          // A. Setup Canvas Ukuran Asli
           canvas.width = img.width;
           canvas.height = img.height;
           
-          // B. Gambar Foto Profil (Original)
+          // Draw original image
           ctx.drawImage(img, 0, 0);
-
-          // C. Setup Style "Spidol Merah"
-          // Ukuran font responsif terhadap lebar gambar (minimal 24px)
-          const fontSize = Math.max(24, Math.floor(img.width / 30)); 
-          const lineHeight = fontSize * 1.2;
           
-          ctx.font = `${fontSize}px "Patrick Hand", "Comic Sans MS", cursive`;
-          ctx.textBaseline = "top";
+          // Parse annotations
+          const annotations = parseAnnotations(roastText, img.width, img.height);
           
-          // Efek Stroke Putih (Outline) agar teks terbaca di background gelap
-          ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
-          ctx.lineWidth = Math.max(3, fontSize / 6); // Tebal stroke menyesuaikan font
+          // Setup base style
+          ctx.strokeStyle = "#ff0000";
+          ctx.fillStyle = "#ff0000";
+          ctx.lineWidth = 3;
           
-          // Warna Teks Merah Terang
-          ctx.fillStyle = "#ff0000"; 
-          
-          // D. Logic Penulisan (Handling Paragraphs)
-          const padding = img.width * 0.05; // 5% padding kiri/kanan
-          const maxWidth = img.width - (padding * 2);
-          
-          // Pisahkan berdasarkan Enter/Newline dari AI
-          const paragraphs = roastText.split('\n');
-          
-          let cursorY = padding; // Mulai menulis dari posisi Y
-
-          // Loop setiap paragraf
-          paragraphs.forEach((paragraph) => {
-            if (!paragraph.trim()) {
-                cursorY += lineHeight; // Spasi untuk baris kosong
-                return;
-            }
-
-            // Pecah paragraf jadi baris-baris (word wrap)
-            const lines = getLines(ctx, paragraph, maxWidth);
-
-            lines.forEach((line) => {
-              // Cek apakah teks sudah keluar dari bawah gambar
-              if (cursorY + lineHeight > img.height) return;
-
-              // Gambar Outline (Stroke) DULU
-              ctx.strokeText(line, padding, cursorY);
-              // Gambar Teks (Fill) SETELAHNYA
-              ctx.fillText(line, padding, cursorY);
-
-              cursorY += lineHeight;
-            });
+          // Draw each annotation
+          annotations.forEach(annotation => {
+            ctx.save();
             
-            // Tambah jarak antar paragraf
-            cursorY += lineHeight * 0.5; 
+            // Set font
+            ctx.font = `${annotation.fontSize}px "Patrick Hand", "Comic Sans MS", cursive`;
+            ctx.textBaseline = "top";
+            
+            // Apply rotation
+            ctx.translate(annotation.x, annotation.y);
+            ctx.rotate(annotation.rotation);
+            
+            // Wrap text
+            const maxWidth = img.width * 0.4;
+            const lines = wrapText(ctx, annotation.text, maxWidth);
+            const lineHeight = annotation.fontSize * 1.2;
+            
+            // Draw based on type
+            if (annotation.type === 'ARROW') {
+              // Draw arrow first
+              ctx.translate(-annotation.x, -annotation.y);
+              const arrowStartX = annotation.x - 30;
+              const arrowEndX = annotation.x - 5;
+              drawArrow(ctx, arrowStartX, annotation.y + 10, arrowEndX, annotation.y + 10);
+              ctx.translate(annotation.x, annotation.y);
+              
+              // Then text
+              lines.forEach((line, i) => {
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+                ctx.lineWidth = 4;
+                ctx.strokeText(line, 0, i * lineHeight);
+                ctx.strokeStyle = "#ff0000";
+                ctx.fillText(line, 0, i * lineHeight);
+              });
+              
+            } else if (annotation.type === 'CIRCLE') {
+              // Draw circle around text area
+              const textWidth = ctx.measureText(annotation.text).width;
+              ctx.translate(-annotation.x, -annotation.y);
+              drawCircle(ctx, annotation.x + textWidth / 2, annotation.y + annotation.fontSize / 2, Math.max(textWidth, annotation.fontSize) * 0.7);
+              ctx.translate(annotation.x, annotation.y);
+              
+              lines.forEach((line, i) => {
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+                ctx.lineWidth = 4;
+                ctx.strokeText(line, 0, i * lineHeight);
+                ctx.strokeStyle = "#ff0000";
+                ctx.fillText(line, 0, i * lineHeight);
+              });
+              
+            } else if (annotation.type === 'UNDERLINE') {
+              lines.forEach((line, i) => {
+                const width = ctx.measureText(line).width;
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+                ctx.lineWidth = 4;
+                ctx.strokeText(line, 0, i * lineHeight);
+                ctx.strokeStyle = "#ff0000";
+                ctx.fillText(line, 0, i * lineHeight);
+                
+                // Draw underline
+                ctx.translate(-annotation.x, -annotation.y);
+                drawUnderline(ctx, annotation.x, annotation.y + (i + 1) * lineHeight - 5, width);
+                ctx.translate(annotation.x, annotation.y);
+              });
+              
+            } else if (annotation.type === 'BIG X') {
+              // Draw big X
+              ctx.translate(-annotation.x, -annotation.y);
+              drawX(ctx, annotation.x, annotation.y + annotation.fontSize, annotation.fontSize * 1.5);
+              ctx.translate(annotation.x, annotation.y);
+              
+              lines.forEach((line, i) => {
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+                ctx.lineWidth = 4;
+                ctx.strokeText(line, 0, i * lineHeight + annotation.fontSize * 2);
+                ctx.strokeStyle = "#ff0000";
+                ctx.fillText(line, 0, i * lineHeight + annotation.fontSize * 2);
+              });
+              
+            } else {
+              // Default: MARGIN or STRIKETHROUGH
+              lines.forEach((line, i) => {
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+                ctx.lineWidth = 4;
+                ctx.strokeText(line, 0, i * lineHeight);
+                ctx.strokeStyle = "#ff0000";
+                ctx.fillText(line, 0, i * lineHeight);
+                
+                if (annotation.type === 'STRIKETHROUGH') {
+                  const width = ctx.measureText(line).width;
+                  ctx.beginPath();
+                  ctx.moveTo(0, i * lineHeight + lineHeight / 2);
+                  ctx.lineTo(width, i * lineHeight + lineHeight / 2);
+                  ctx.stroke();
+                }
+              });
+            }
+            
+            ctx.restore();
           });
           
-          // Tambahkan watermark kecil di pojok kanan bawah
-          const watermark = "🔥 roasted by nano banana";
-          ctx.font = `${fontSize * 0.6}px "Patrick Hand", sans-serif`;
+          // Watermark
+          ctx.font = `${Math.max(14, img.width / 60)}px "Patrick Hand", sans-serif`;
           ctx.textAlign = "right";
           ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
           ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
           ctx.lineWidth = 2;
+          const watermark = "🔥 roasted by nano banana";
           ctx.strokeText(watermark, canvas.width - 20, canvas.height - 20);
           ctx.fillText(watermark, canvas.width - 20, canvas.height - 20);
         };
@@ -219,7 +384,6 @@ export default function Home() {
     }
   }, [roastText, selectedFile]);
 
-  // 8. Download Image
   const handleDownload = () => {
     if (canvasRef.current) {
       const imageURI = canvasRef.current.toDataURL("image/png");
