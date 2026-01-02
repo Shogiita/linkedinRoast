@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
       [ARROW] Generic banner image. Zero effort detected.
     `;
 
-    let lastError = null;
+    let lastError: Error | null = null;
     let successText = "";
 
     for (const modelName of PRIORITY_MODELS) {
@@ -65,20 +65,22 @@ export async function POST(req: NextRequest) {
         successText = result.response.text();
         if (successText) break;
 
-      } catch (err: any) {
-        console.warn(`Model ${modelName} failed:`, err.message);
-        lastError = err;
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        console.warn(`Model ${modelName} failed:`, errorMessage);
+        lastError = err instanceof Error ? err : new Error(errorMessage);
       }
     }
 
     if (!successText) {
-      throw new Error(`AI Error: ${lastError?.message}`);
+      throw new Error(`AI Error: ${lastError?.message || "Unknown error"}`);
     }
 
     return NextResponse.json({ roast: successText });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Server Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : "Internal Server Error";
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

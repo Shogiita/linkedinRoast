@@ -46,8 +46,9 @@ export default function Home() {
     try {
       setError('');
       await signInWithPopup(auth, googleProvider);
-    } catch (err: any) {
-      setError("Login gagal: " + (err.message || "Unknown error"));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setError("Login gagal: " + message);
     }
   };
 
@@ -98,16 +99,17 @@ export default function Home() {
           const errorJson = JSON.parse(errorText);
           throw new Error(errorJson.error || 'Terjadi kesalahan pada AI');
         } catch (e) {
-          throw new Error(`Gagal: ${errorText.slice(0, 50)}...`); 
+          throw new Error(`Gagal: ${e}, ${errorText.slice(0, 50)}...`); 
         }
       }
 
       const data = await response.json();
       setRoastText(data.roast);
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError('Gagal roasting: ' + err.message);
+      const message = err instanceof Error ? err.message : String(err);
+      setError('Gagal roasting: ' + message);
     } finally {
       setIsRoasting(false);
     }
@@ -127,9 +129,9 @@ export default function Home() {
       let cleanText = line;
       
       // Detect annotation type
-      if (line.includes('[ARROW→]') || line.includes('[ARROW]')) {
+      if (line.includes('[ARROW]')) {
         type = 'ARROW';
-        cleanText = line.replace(/\[ARROW[→]?\]/gi, '').trim();
+        cleanText = line.replace(/\[ARROW\]/gi, '').trim();
       } else if (line.includes('[CIRCLE]')) {
         type = 'CIRCLE';
         cleanText = line.replace(/\[CIRCLE\]/gi, '').trim();
@@ -376,7 +378,7 @@ export default function Home() {
           ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
           ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
           ctx.lineWidth = 2;
-          const watermark = "🔥 roasted by nano banana";
+          const watermark = "roasted by nano banana";
           ctx.strokeText(watermark, canvas.width - 20, canvas.height - 20);
           ctx.fillText(watermark, canvas.width - 20, canvas.height - 20);
         };
@@ -418,7 +420,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#f3f2ef] pb-20 font-sans">
       <div className="bg-white shadow-sm p-4 flex justify-between items-center mb-8">
-        <div className="font-bold text-xl text-gray-800">🔥 LinkedIn Roaster</div>
+        <div className="font-bold text-xl text-gray-800">LinkedIn Roaster</div>
         <button onClick={handleLogout} className="px-4 py-2 border border-gray-300 rounded-full hover:bg-gray-100 transition-colors text-sm">Keluar</button>
       </div>
 
@@ -429,6 +431,7 @@ export default function Home() {
             <div className="flex items-center justify-center w-full mb-6">
                 <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors relative overflow-hidden">
                     {previewUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
                       <img src={previewUrl} alt="Preview" className="absolute inset-0 w-full h-full object-contain p-4" style={{opacity: isRoasting ? 0.5 : 1}} />
                     ) : (
                       <div className="flex flex-col items-center justify-center pt-5 pb-6">
@@ -446,7 +449,7 @@ export default function Home() {
                 !selectedFile || isRoasting ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#d93025] hover:bg-red-700 shadow-md'
               }`}
             >
-              {isRoasting ? "Sedang Menganalisa..." : "🔥 ROAST NOW 🔥"}
+              {isRoasting ? "Sedang Menganalisa..." : "ROAST NOW"}
             </button>
           </div>
         )}

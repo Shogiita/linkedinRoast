@@ -1,5 +1,5 @@
-// linkedinroast/lib/firebase.ts
-import { initializeApp, getApps, FirebaseApp } from "firebase/app";
+// linkedinroast/lib/firebaseClient.ts
+import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, Auth } from "firebase/auth";
 
 const firebaseConfig = {
@@ -11,20 +11,22 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
-// Kita deklarasikan variabel dengan tipe data yang jelas
+// Gunakan const karena nilainya tidak berubah
 let app: FirebaseApp;
 let auth: Auth;
 let googleProvider: GoogleAuthProvider;
 
-// Cek apakah Firebase sudah diinisialisasi agar tidak double di mode development
-if (getApps().length === 0) {
-  app = initializeApp(firebaseConfig);
+// Cegah inisialisasi jika API Key belum ada (misal saat build time di Docker tanpa ARG)
+if (!firebaseConfig.apiKey) {
+  // Return dummy atau null saat build untuk mencegah crash "invalid-api-key"
+  app = {} as FirebaseApp;
+  auth = {} as Auth;
+  googleProvider = new GoogleAuthProvider();
 } else {
-  app = getApps()[0];
+  // Pola Singleton untuk Firebase App
+  app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+  auth = getAuth(app);
+  googleProvider = new GoogleAuthProvider();
 }
-
-// Inisialisasi Auth dan Provider
-auth = getAuth(app);
-googleProvider = new GoogleAuthProvider();
 
 export { auth, googleProvider };
