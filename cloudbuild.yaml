@@ -1,6 +1,5 @@
 steps:
   # 1. Build image Docker dengan --build-arg
-  # Ini penting agar NEXT_PUBLIC terbaca saat 'npm run build' berjalan di dalam Docker
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
@@ -21,7 +20,6 @@ steps:
     args: ['push', 'gcr.io/$PROJECT_ID/linkedin-roast']
 
   # 3. Deploy ke Cloud Run
-  # Kita set environment vars runtime disini juga untuk memastikan konsistensi
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
@@ -40,12 +38,10 @@ steps:
       - 'GOOGLE_API_KEY=$_GOOGLE_API_KEY'
       - '--set-env-vars'
       - 'NEXT_PUBLIC_FIREBASE_API_KEY=$_NEXT_PUBLIC_FIREBASE_API_KEY'
-      # ... (tambahkan set-env-vars lain jika perlu tersedia di process.env server side)
 
 images:
   - 'gcr.io/$PROJECT_ID/linkedin-roast'
 
-# Ini adalah definisi variable yang WAJIB kamu isi di settingan Cloud Build Trigger
 substitutions:
   _GOOGLE_API_KEY: ''
   _NEXT_PUBLIC_FIREBASE_API_KEY: ''
@@ -54,3 +50,7 @@ substitutions:
   _NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ''
   _NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ''
   _NEXT_PUBLIC_FIREBASE_APP_ID: ''
+
+# --- TAMBAHKAN BAGIAN INI UNTUK FIX ERROR LOGS ---
+options:
+  logging: CLOUD_LOGGING_ONLY
