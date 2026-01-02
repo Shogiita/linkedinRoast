@@ -10,12 +10,23 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
-// Cek apakah config valid (mencegah crash saat build/deploy jika env belum set)
-const isConfigValid = !!firebaseConfig.apiKey;
+// --- DEBUG LOGGING ---
+// Buka Console Browser (F12) untuk melihat ini
+if (typeof window !== "undefined") {
+  console.log("🔥 FIREBASE CLIENT DEBUG 🔥");
+  console.log("API KEY Status:", firebaseConfig.apiKey ? "ADA ✅" : "KOSONG ❌");
+  console.log("Project ID Status:", firebaseConfig.projectId ? "ADA ✅" : "KOSONG ❌");
+  console.log("Full Config (Partial):", {
+    ...firebaseConfig,
+    apiKey: firebaseConfig.apiKey ? "HIDDEN_FOR_SECURITY" : "MISSING"
+  });
+}
+// ---------------------
 
-const app = isConfigValid 
-  ? (getApps().length === 0 ? initializeApp(firebaseConfig) : getApp())
-  : null;
+// Kita hapus pengecekan "isConfigValid" supaya error aslinya dari Firebase keluar
+// Jika config kosong, initializeApp akan throw error di console, 
+// yang lebih informatif daripada sekedar "Cek .env"
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-export const auth = app ? getAuth(app) : null;
+export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
