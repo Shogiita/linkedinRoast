@@ -5,14 +5,6 @@ import { signInWithPopup, signOut, onAuthStateChanged, User } from "firebase/aut
 import Image from 'next/image';
 import { auth, googleProvider } from '@/lib/firebaseClient';
 
-// --- PROMPT AI YANG DIMINTA ---
-// Prompt ini akan dikirim ke backend jika Anda menghubungkan layanan AI sungguhan.
-const AI_PROMPT = `Overlay the image with hand-drawn red-ink annotations, scribbles, arrows, and margin notes.
-Tone: sharp, sarcastic, slightly mean, but genuinely funny.
-Voice: a veteran, no-BS expert in [your field] who has seen this mistake a thousand times.
-Critique should be insightful, technically accurate, and ruthless, but still entertaining.
-Style it like a real expert marking up a bad draft, not a meme`;
-
 export default function Home() {
   // Auth States
   const [user, setUser] = useState<User | null>(null);
@@ -78,44 +70,51 @@ export default function Home() {
   };
 
   // 5. FUNGSI UTAMA: Proses Roasting (SIMULASI)
+  // Ganti handleRoastProcess yang lama dengan ini:
   const handleRoastProcess = async () => {
-    if (!selectedFile || !previewUrl) return;
+    if (!selectedFile) return;
 
     setIsRoasting(true);
     setError('');
 
     try {
-      // --- AREA INTEGRASI BACKEND AI ---
-      console.log("Mengirim ke AI dengan prompt:", AI_PROMPT);
+      const formData = new FormData();
+      formData.append('image', selectedFile);
+
+      const response = await fetch('/api/roast', {
+        method: 'POST',
+        body: formData,
+      });
+
+      // Cek apakah response sukses
+      if (!response.ok) {
+        // BACA DULU SEBAGAI TEXT, JANGAN LANGSUNG JSON
+        const errorText = await response.text(); 
+        console.error("Server Error Full Text:", errorText); // Cek Console browser (F12) untuk lihat ini
+        
+        try {
+          // Coba parsing kalau ternyata formatnya JSON
+          const errorJson = JSON.parse(errorText);
+          throw new Error(errorJson.error || 'Terjadi kesalahan pada AI');
+        } catch (e) {
+          // Kalau bukan JSON (misal "Server Error"), tampilkan teks aslinya
+          throw new Error(`Gagal: ${errorText.slice(0, 50)}...`); 
+        }
+      }
+
+      const data = await response.json();
+      const roastText = data.roast;
       
-      /* CATATAN PENTING UNTUK PENGEMBANG:
-         Di sinilah Anda akan memanggil API backend Anda (misalnya Route Handler Next.js).
-         Anda akan mengirim `selectedFile` (sebagai FormData) dan string `AI_PROMPT`.
-         Backend akan menghubungi OpenAI DALL-E 3 / Midjourney API, lalu mengembalikan URL gambar hasil.
-
-         Contoh pseudo-code:
-         const formData = new FormData();
-         formData.append('image', selectedFile);
-         formData.append('prompt', AI_PROMPT);
-         const response = await fetch('/api/roast', { method: 'POST', body: formData });
-         const data = await response.json();
-         const finalImageUrl = data.url;
-      */
-
-      // --- SIMULASI MOCKUP (Karena tidak ada API Key) ---
-      // Kita tunggu 3 detik seolah-olah AI sedang bekerja
-      await new Promise(resolve => setTimeout(resolve, 3000));
-
-      // UNTUK DEMO: Kita gunakan layanan placeholder yang memberikan gambar dengan teks merah
-      // untuk mensimulasikan hasil coretan.
-      // Dalam produksi, ini adalah URL gambar yang dikembalikan oleh API AI Anda.
-      const mockRoastedImage = `https://placehold.co/800x1000/e0e0e0/d93025.png?text=ROASTED+BY\nNANO+BANANA\n(Simulasi+Hasil+AI)\n\n${encodeURIComponent("Coretan: Profil ini terlalu membosankan.\nGanti headline Anda!")}`;
+      // 3. Tampilkan Hasil
+      // Kita tempel teks asli dari Gemini ke template gambar
+      const safeText = encodeURIComponent(roastText.slice(0, 300)); 
+      const realRoastImage = `https://placehold.co/800x1000/e0e0e0/d93025.png?text=${safeText}&font=roboto`;
       
-      setRoastedResultUrl(mockRoastedImage);
+      setRoastedResultUrl(realRoastImage);
 
-    } catch (err) {
-      setError('Gagal melakukan roasting. Coba lagi nanti.');
+    } catch (err: any) {
       console.error(err);
+      setError('Gagal roasting: ' + err.message);
     } finally {
       setIsRoasting(false);
     }
