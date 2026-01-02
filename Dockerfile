@@ -43,9 +43,6 @@ ENV NEXT_TELEMETRY_DISABLED 1
 ENV PORT 8080
 
 # --- PERUBAHAN PENTING DI SINI ---
-# Saya MENGHAPUS semua ARG dan ENV untuk API Key di stage ini.
-# Biarkan Cloud Run menyuntikkannya secara otomatis saat Runtime.
-# Jika kamu menulis ENV GOOGLE_API_KEY=... disini, itu akan menimpa value dari Cloud Run.
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
