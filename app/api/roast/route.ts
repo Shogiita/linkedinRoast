@@ -10,8 +10,6 @@ const PRIORITY_MODELS = [
   "models/gemini-3-flash-preview",
   "models/gemini-2.5-flash",
   "models/gemini-2.0-flash",      
-  "gemini-2.0-flash-exp",  // Coba versi eksperimental (seringkali nama aslinya ini)
-  "gemini-1.5-flash"       // Fallback terakhir (PASTI JALAN)
 ];
 
 export async function POST(req: NextRequest) {
@@ -26,7 +24,6 @@ export async function POST(req: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const base64Image = Buffer.from(arrayBuffer).toString('base64');
     
-    // Prompt Roasting
     const prompt = `
       Overlay the image with hand-drawn red-ink annotations, scribbles, arrows, and margin notes.
       Tone: sharp, sarcastic, slightly mean, but genuinely funny.
