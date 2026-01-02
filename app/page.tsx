@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { signInWithPopup, signOut, onAuthStateChanged, User } from "firebase/auth";
-import Image from 'next/image';
 import { auth, googleProvider } from '@/lib/firebaseClient';
 
 // Type untuk annotation
