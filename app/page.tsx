@@ -1,280 +1,322 @@
-'use client'; 
+'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { signInWithPopup, signOut, onAuthStateChanged, User } from "firebase/auth";
-import { auth, googleProvider } from '../lib/firebase';
-// import Image from 'next/image';
+import Image from 'next/image';
+import { auth, googleProvider } from '@/lib/firebaseClient';
+
+// --- PROMPT AI YANG DIMINTA ---
+// Prompt ini akan dikirim ke backend jika Anda menghubungkan layanan AI sungguhan.
+const AI_PROMPT = `Overlay the image with hand-drawn red-ink annotations, scribbles, arrows, and margin notes.
+Tone: sharp, sarcastic, slightly mean, but genuinely funny.
+Voice: a veteran, no-BS expert in [your field] who has seen this mistake a thousand times.
+Critique should be insightful, technically accurate, and ruthless, but still entertaining.
+Style it like a real expert marking up a bad draft, not a meme`;
 
 export default function Home() {
+  // Auth States
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // App States
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isRoasting, setIsRoasting] = useState(false);
+  const [roastedResultUrl, setRoastedResultUrl] = useState<string | null>(null);
+  
+  // Canvas Ref untuk rendering dan download image
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // 1. Handle Auth State Check
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser: User | null) => {
       setUser(currentUser);
-      setLoading(false);
+      setAuthLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
+  // 2. Handle Login
   const handleLogin = async () => {
     try {
+      setError('');
       await signInWithPopup(auth, googleProvider);
-    } catch (err: any) { 
+    } catch (err: any) {
       setError("Login gagal: " + (err.message || "Unknown error"));
     }
   };
 
+  // 3. Handle Logout
   const handleLogout = async () => {
     try {
       await signOut(auth);
+      // Reset semua state aplikasi saat logout
+      setSelectedFile(null);
+      setPreviewUrl(null);
+      setRoastedResultUrl(null);
     } catch (err) {
       console.error(err);
     }
   };
 
-  if (loading) {
-    return <div style={{height:'100vh', display:'flex', justifyContent:'center', alignItems:'center'}}>Loading...</div>;
+  // 4. Handle File Select
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        setError('Mohon upload file gambar.');
+        return;
+      }
+      setSelectedFile(file);
+      // Buat URL preview lokal
+      const objectUrl = URL.createObjectURL(file);
+      setPreviewUrl(objectUrl);
+      setRoastedResultUrl(null); // Reset hasil sebelumnya jika ada upload baru
+      setError('');
+    }
+  };
+
+  // 5. FUNGSI UTAMA: Proses Roasting (SIMULASI)
+  const handleRoastProcess = async () => {
+    if (!selectedFile || !previewUrl) return;
+
+    setIsRoasting(true);
+    setError('');
+
+    try {
+      // --- AREA INTEGRASI BACKEND AI ---
+      console.log("Mengirim ke AI dengan prompt:", AI_PROMPT);
+      
+      /* CATATAN PENTING UNTUK PENGEMBANG:
+         Di sinilah Anda akan memanggil API backend Anda (misalnya Route Handler Next.js).
+         Anda akan mengirim `selectedFile` (sebagai FormData) dan string `AI_PROMPT`.
+         Backend akan menghubungi OpenAI DALL-E 3 / Midjourney API, lalu mengembalikan URL gambar hasil.
+
+         Contoh pseudo-code:
+         const formData = new FormData();
+         formData.append('image', selectedFile);
+         formData.append('prompt', AI_PROMPT);
+         const response = await fetch('/api/roast', { method: 'POST', body: formData });
+         const data = await response.json();
+         const finalImageUrl = data.url;
+      */
+
+      // --- SIMULASI MOCKUP (Karena tidak ada API Key) ---
+      // Kita tunggu 3 detik seolah-olah AI sedang bekerja
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // UNTUK DEMO: Kita gunakan layanan placeholder yang memberikan gambar dengan teks merah
+      // untuk mensimulasikan hasil coretan.
+      // Dalam produksi, ini adalah URL gambar yang dikembalikan oleh API AI Anda.
+      const mockRoastedImage = `https://placehold.co/800x1000/e0e0e0/d93025.png?text=ROASTED+BY\nNANO+BANANA\n(Simulasi+Hasil+AI)\n\n${encodeURIComponent("Coretan: Profil ini terlalu membosankan.\nGanti headline Anda!")}`;
+      
+      setRoastedResultUrl(mockRoastedImage);
+
+    } catch (err) {
+      setError('Gagal melakukan roasting. Coba lagi nanti.');
+      console.error(err);
+    } finally {
+      setIsRoasting(false);
+    }
+  };
+
+  // 6. Effect untuk Menggambar Hasil di Canvas
+  // Ini berjalan ketika roastedResultUrl sudah didapatkan
+  useEffect(() => {
+    if (roastedResultUrl && canvasRef.current) {
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      const img = new window.Image();
+      
+      // Penting untuk mengizinkan manipulasi gambar lintas domain jika URL dari eksternal
+      img.crossOrigin = "anonymous"; 
+      
+      img.onload = () => {
+        // Set ukuran canvas agar sesuai dengan gambar hasil
+        canvas.width = img.width;
+        canvas.height = img.height;
+        // Gambar image hasil AI ke dalam canvas
+        ctx?.drawImage(img, 0, 0);
+      };
+      img.src = roastedResultUrl;
+    }
+  }, [roastedResultUrl]);
+
+
+  // 7. Handle Download Image dari Canvas
+  const handleDownload = () => {
+    if (canvasRef.current) {
+      // Mengubah isi canvas menjadi Data URL (base64 image)
+      const imageURI = canvasRef.current.toDataURL("image/png");
+      
+      // Membuat link sementara untuk men-trigger download
+      const link = document.createElement('a');
+      link.download = `linkedin-roast-${Date.now()}.png`;
+      link.href = imageURI;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      link.remove();
+    }
+  };
+
+  // -- Render Loading State Awal --
+  if (authLoading) {
+    return <div className="flex h-screen justify-center items-center bg-gray-100"><div className="spinner"></div></div>;
   }
 
+  // -- Render Halaman Login (REQ 1: UI Diperbaiki) --
   if (!user) {
     return (
-      <div className="login-screen">
-        <div className="login-card">
-          <h1 className="roast-title" style={{color: '#d93025', transform: 'rotate(-3deg)', marginBottom: '5px'}}>WARNING!</h1>
-          <div style={{fontSize: '24px', fontWeight: 'bold', marginBottom: '10px'}}>Need Login</div>
-          <div style={{color: 'rgba(0,0,0,0.6)', marginBottom: '30px', fontSize: '14px'}}>
-            Halaman ini berisi konten "Roasting" tingkat tinggi.<br />
-            Silakan login untuk membuktikan Anda siap mental.
-          </div>
+      <div className="min-h-screen flex items-center justify-center bg-[#f3f2ef] p-4">
+        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full text-center relative overflow-hidden">
+          {/* Hiasan peringatan */}
+          <div className="absolute top-0 left-0 w-full h-2 bg-[#d93025]"></div>
+          <h1 className="text-3xl font-black text-[#d93025] mb-2 transform -rotate-2" style={{fontFamily: 'cursive'}}>WARNING!</h1>
+          <h2 className="text-2xl font-bold mb-4 text-gray-800">LinkedIn Roast Arena</h2>
+          <p className="text-gray-600 mb-8 leading-relaxed">
+            Halaman ini berisi konten "Roasting" tingkat tinggi oleh AI. 
+            <br/>Siapkan mental Anda sebelum masuk.
+          </p>
           
-          <button onClick={handleLogin} className="google-btn">
-            <img 
+          {error && <p className="text-red-500 text-sm mb-4 bg-red-50 p-2 rounded">{error}</p>}
+          
+          {/* Tombol Google Sign-In yang diperbaiki */}
+          <button onClick={handleLogin} className="flex items-center justify-center w-full bg-white border border-gray-300 rounded-full p-3 shadow-sm hover:shadow-md transition-all active:scale-95 text-gray-700 font-medium">
+            <Image 
               src="/image/google.png" 
               alt="G" 
-              style={{marginRight: '12px', width: '18px', height: '18px'}} 
+              width={24} height={24}
+              className="mr-3"
             />
             Sign in with Google
           </button>
-          {error && <p style={{color:'red', fontSize:'12px', marginTop:'10px'}}>{error}</p>}
         </div>
       </div>
     );
   }
 
+  // -- Render Halaman Utama (Setelah Login) --
   return (
-    <main>
-      <button onClick={handleLogout} className="logout-btn">
-        <i className="fas fa-sign-out-alt"></i> Keluar
-      </button>
-
-      <div className="container">
-        
-        <div className="card">
-          <div className="banner">
-            <div className="roast-text r-banner">
-              "Connect. Create. Celebrate"?<br />More like "Collect. Copy. Congratulate."
-            </div>
-            <svg className="banner-circle" viewBox="0 0 300 60">
-              <path d="M 10,30 Q 150,5 290,30 Q 290,55 150,55 Q 10,55 10,30 M 10,30 L 15,28" />
-            </svg>
-          </div>
-
-          <div className="profile-pic-container">
-            <img src="/image/profilepicture.jpg" alt="Profile" />
-          </div>
-
-          <div className="header-content">
-            <div className="left-col">
-              <div className="roast-layer">
-                <div className="roast-text r-headshot">
-                  The "serious but approachable" headshot.<br />Seen it a million times.
-                </div>
-                <svg className="arrow-svg" viewBox="0 0 120 100">
-                  <path d="M 100,80 Q 50,60 10,10" />
-                </svg>
-              </div>
-
-              <h1>
-                Esther Setiawan 
-                <div className="badges">
-                  <i className="fas fa-check-circle" style={{color: '#666'}}></i>
-                  <span>(She/Her)</span>
-                  <span style={{fontSize:'12px'}}>&bull; 1st</span>
-                </div>
-              </h1>
-              
-              <p className="headline">Google Developer Expert AI and Google Cloud, Professor ISTTS, GDG Surabaya Organizer</p>
-              
-              <div className="location">Surabaya, East Java, Indonesia &middot; <span className="contact-info">Contact info</span></div>
-              <div className="connections">500+ connections</div>
-              
-              <div className="mutual-connections">
-                <div className="mutual-avatars">
-                  <img src="https://ui-avatars.com/api/?name=W+S&background=random" alt="WS" />
-                  <img src="https://ui-avatars.com/api/?name=H+H&background=random" alt="HH" />
-                </div>
-                <div className="mutual-text">
-                  <strong>William Sugiarto</strong>, <strong>Hanvy Hendrawan</strong>, and 44 other mutual connections
-                </div>
-              </div>
-
-              <div className="btn-group">
-                <button className="btn btn-primary"><i className="fas fa-paper-plane"></i> Message</button>
-                <button className="btn btn-secondary">More</button>
-              </div>
-            </div>
-
-            <div className="right-col">
-              <div className="roast-layer">
-                <div className="roast-text r-headline">
-                  GDE, Professor, Organizer?<br />Pick a lane, superstar.<br />Spread too thin much?
-                </div>
-                <svg className="company-circle" viewBox="0 0 240 95">
-                  <path d="M 10,10 Q 120,0 230,10 Q 235,50 230,90 Q 120,95 10,90 Q 0,50 10,10 M 10,10 L 15,15" />
-                </svg>
-              </div>
-
-              <div className="company-row">
-                <img src="/image/gdg.jpg" alt="GDE" />
-                <span>Google Developer Experts</span>
-              </div>
-              <div className="company-row">
-                <img src="/image/its.png" alt="ITS" />
-                <span>Institut Teknologi Sepuluh Nopember Surabaya</span>
-              </div>
-            </div>
-          </div>
+    <main className="min-h-screen bg-[#f3f2ef] pb-20">
+      {/* Header Bar */}
+      <div className="bg-white shadow-sm p-4 flex justify-between items-center mb-8">
+        <div className="font-bold text-xl text-gray-800">🔥 LinkedIn Roaster</div>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-gray-600 hidden sm:block">Hi, {user.displayName}</span>
+          <button onClick={handleLogout} className="px-4 py-2 border border-gray-300 rounded-full hover:bg-gray-100 transition-colors text-sm">
+            Keluar
+          </button>
         </div>
-
-        <div className="card">
-          <div className="section-header">
-            <h2 className="section-title">About</h2>
-            <i className="fas fa-pen" style={{color:'#666', cursor:'pointer'}}></i>
-          </div>
-          <div className="about-text" style={{position:'relative'}}>
-            <div className="roast-layer">
-              <div className="roast-text r-about" style={{
-                top: '-5px', left: '580px', width: '210px', 
-                transform: 'rotate(-2deg)', textAlign: 'left', background: 'white', 
-                padding: '8px', border: '2px solid var(--roast-color)', 
-                boxShadow: '2px 2px 5px rgba(0,0,0,0.1)'
-              }}>
-                TRANSLATION:<br />
-                I STALK PEOPLE ON FACEBOOK FOR "NANO BANANA RESEARCH".
-              </div>
-            </div>
-
-            I am a Lecturer with more than ten years of research in 
-            <span style={{position:'relative', display:'inline-block', margin: '0 4px'}}>
-              Social Network/Media Analysis
-              <div style={{
-                position: 'absolute', width: '105%', height: '140%',
-                top: '-15%', left: '-2%', border: '3px solid var(--roast-color)',
-                borderRadius: '50% 60% 50% 40%', transform: 'rotate(-2deg)', pointerEvents: 'none'
-              }}></div>
-            </span> 
-           and professional work experience in the computer software industry and machine learning. My background includes the creation of machine learning models; websites using HTML, CSS, and JAVASCRIPT; front-end development of desktop and web-based applications; database management of Cloud systems, as well as designing mobile applications for Android. I also have good experier... <span style={{color:'var(--text-secondary)', cursor:'pointer'}}>see more</span>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="section-header">
-            <div>
-              <h2 className="section-title">Activity</h2>
-              <div style={{fontSize:'14px', color:'var(--link-blue)', marginTop:'2px'}}>2,942 followers</div>
-            </div>
-            <button className="btn btn-secondary" style={{borderRadius:'16px'}}>Following</button>
-          </div>
-
-          <div className="activity-nav">
-            <button className="pill active">Posts</button>
-            <button className="pill">Comments</button>
-            <button className="pill">Images</button>
-          </div>
-
-          <div className="activity-grid">
-            
-            <div className="feed-post">
-              <div className="post-header">
-                <img src="/image/profilepicture.jpg" className="mini-avatar" alt="Avatar" />
-                <div className="post-meta">
-                  <div>Esther Setiawan <i className="fas fa-check-circle" style={{fontSize:'12px', marginLeft:'4px', color:'#666'}}></i> &bull; 1st</div>
-                  <div>4d &bull; <i className="fas fa-globe-americas"></i></div>
-                </div>
-                <i className="fas fa-ellipsis-h" style={{marginLeft:'auto', color:'#666', cursor:'pointer'}}></i>
-              </div>
-              <div className="post-caption">
-                I’m happy to share that I’ve obtained a new certification: Building RAG Agents with LLMs from <span style={{color:'var(--link-blue)', fontWeight:600}}>NVIDIA!</span>
-              </div>
-              
-              <div style={{position:'relative'}}>
-                <div className="post-image-area">
-                  <img src="/image/nvidia.gif" alt="NVIDIA" className="post-gif" />
-                </div>
-                <div className="post-img-text">Celebrating a New Certification</div>
-                <div className="roast-text r-post-1">
-                  RAG Agents with LLMs? <br />2023 called, it wants its hype back.
-                </div>
-              </div>
-              <div className="post-footer" style={{borderTop:'none'}}>
-                <span style={{display:'flex', alignItems:'center', gap:'4px'}}>
-                   40 Likes
-                </span>
-                <span style={{marginLeft:'auto'}}>1 comment</span>
-              </div>
-              <div className="action-bar">
-                <button className="action-btn"><i className="far fa-thumbs-up"></i></button>
-                <button className="action-btn"><i className="far fa-comment"></i></button>
-                <button className="action-btn"><i className="fas fa-share"></i></button>
-              </div>
-            </div>
-
-            <div className="feed-post">
-              <div className="post-header">
-                <img src="/image/profilepicture.jpg" className="mini-avatar" alt="Avatar" />
-                <div className="post-meta">
-                  <div>Esther Setiawan <i className="fas fa-check-circle" style={{fontSize:'12px', marginLeft:'4px', color:'#666'}}></i> &bull; 1st</div>
-                  <div>5d &bull; <i className="fas fa-globe-americas"></i></div>
-                </div>
-              </div>
-              <div className="post-caption">
-                Stop just visualizing your networks—start talking to them. 🕸️💬
-                <br />
-                 In the world of Social Network Analysis (SNA), seeing the connections is only half the battle. The real value comes when you can ask your data why those connections exist. I just published a new guide, "Building an Intelligent Social Network Analysis Assistant with Gemini 3 Pro and Flask," where we merge the computational power of Graph Theory with the advanced... Read more
-              </div>
-              
-              <div className="roast-layer">
-                <div className="roast-text r-post-2">
-                  Intelligent with Gemini?<br />Don't make me laugh.<br /><i className="fas fa-arrow-down"></i>
-                </div>
-              </div>
-
-              <div className="link-card">
-                <img src="https://picsum.photos/seed/chart/200/200" className="link-thumb" alt="Thumb" />
-                <div className="link-info">
-                  <div className="link-title">Building an Intelligent SNA...</div>
-                  <div className="link-domain">medium.com</div>
-                </div>
-              </div>
-              
-              <div className="action-bar">
-                <button className="action-btn"><i className="far fa-thumbs-up"></i></button>
-                <button className="action-btn"><i className="far fa-comment"></i></button>
-              </div>
-            </div>
-
-          </div>
-
-          <div className="show-all">
-            Show all posts <i className="fas fa-arrow-right" style={{marginLeft:'8px'}}></i>
-          </div>
-        </div>
-
       </div>
 
-      <div className="meh-stamp">MEH. NEXT.</div>
+      <div className="container mx-auto px-4 max-w-4xl">
+        
+        {/* Area Peringatan */}
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-8 rounded shadow-sm">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-yellow-700">
+                Sistem menggunakan "Nano Banana AI" (Simulasi). Hasil roasting mungkin menyebabkan sakit hati ringan hingga sedang.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* REQ 2: Upload UI */}
+        {!roastedResultUrl && (
+          <div className="bg-white p-8 rounded-xl shadow-lg text-center">
+            <h2 className="text-2xl font-bold mb-6">Langkah 1: Upload Screenshot Profil</h2>
+            <p className="text-gray-500 mb-6">Ambil screenshot penuh halaman profil LinkedIn Anda, lalu upload di sini.</p>
+            
+            {/* Area Dropzone / Input File */}
+            <div className="flex items-center justify-center w-full mb-6">
+                <label htmlFor="dropzone-file" className="flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors relative overflow-hidden">
+                    {previewUrl ? (
+                      // Preview gambar yang dipilih
+                      <img src={previewUrl} alt="Preview" className="absolute inset-0 w-full h-full object-contain p-4" style={{opacity: isRoasting ? 0.5 : 1}} />
+                    ) : (
+                      // Placeholder sebelum upload
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                          <svg className="w-10 h-10 mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                          <p className="mb-2 text-sm text-gray-500"><span className="font-semibold">Klik untuk upload</span> atau drag and drop</p>
+                          <p className="text-xs text-gray-500">PNG, JPG (Max. 800x1200px disarankan)</p>
+                      </div>
+                    )}
+                    <input id="dropzone-file" type="file" accept="image/*" className="hidden" onChange={handleFileChange} disabled={isRoasting} />
+                </label>
+            </div>
+            
+            {error && <p className="text-red-500 mt-2 mb-4">{error}</p>}
+
+            {/* Tombol Eksekusi Roasting */}
+            <button 
+              onClick={handleRoastProcess}
+              disabled={!selectedFile || isRoasting}
+              className={`w-full py-4 rounded-lg text-white font-bold text-lg transition-all flex justify-center items-center ${
+                !selectedFile || isRoasting 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-[#d93025] hover:bg-red-700 shadow-md hover:shadow-lg'
+              }`}
+            >
+              {isRoasting ? (
+                <>
+                  <div className="spinner w-6 h-6 border-white border-l-transparent mr-3"></div>
+                  Menghubungi Nano Banana AI...
+                </>
+              ) : (
+                "🔥 ROAST ME NOW! 🔥"
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* REQ 4 & 5 & 6: Hasil Roasting (Canvas) & Download */}
+        {roastedResultUrl && (
+          <div className="bg-white p-8 rounded-xl shadow-lg text-center">
+             <h2 className="text-3xl font-black text-[#d93025] mb-2" style={{fontFamily: 'cursive'}}>HASIL ROASTING!</h2>
+             <p className="text-gray-600 mb-6">Jangan nangis ya. Ini cuma AI kok.</p>
+
+            {/* Container untuk Canvas */}
+             <div className="relative rounded-lg overflow-hidden border-4 border-[#d93025] shadow-xl mb-8 bg-gray-100 min-h-[300px] flex justify-center items-center">
+                {/* REQ 4: Menggunakan Element Canvas. 
+                  Canvas ini akan digambar oleh useEffect ketika roastedResultUrl tersedia.
+                  Kita membuatnya responsif dengan max-w-full.
+                */}
+                <canvas 
+                  ref={canvasRef} 
+                  className="max-w-full h-auto mx-auto"
+                  style={{ maxHeight: '70vh' }}
+                ></canvas>
+             </div>
+
+             <div className="flex gap-4 justify-center">
+               {/* REQ 6: Tombol Download */}
+               <button 
+                  onClick={handleDownload}
+                  className="bg-gray-800 text-white px-6 py-3 rounded-full hover:bg-gray-900 transition-colors font-medium flex items-center"
+               >
+                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                 Download Hasil Roast
+               </button>
+               
+               <button 
+                  onClick={() => { setRoastedResultUrl(null); setSelectedFile(null); setPreviewUrl(null); }}
+                  className="bg-white text-gray-700 border border-gray-300 px-6 py-3 rounded-full hover:bg-gray-50 transition-colors font-medium"
+               >
+                 Coba Lagi
+               </button>
+             </div>
+          </div>
+        )}
+
+      </div>
     </main>
   );
 }
