@@ -35,7 +35,7 @@ steps:
       - '--image'
       - 'gcr.io/$PROJECT_ID/linkedin-roast'
       - '--region'
-      - 'asia-southeast2' # Ganti sesuai region Anda
+      - 'europe-west1' # Ganti sesuai region Anda
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
