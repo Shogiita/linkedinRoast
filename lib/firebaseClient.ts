@@ -1,6 +1,6 @@
-// linkedinroast/lib/firebaseClient.ts
-import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, Auth } from "firebase/auth";
+// shogiita/linkedinroast/linkedinRoast-a3e34660214acb9cdbc8e4abe9e4ac556175d88e/lib/firebaseClient.ts
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -11,22 +11,14 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
-// Gunakan const karena nilainya tidak berubah
-let app: FirebaseApp;
-let auth: Auth;
-let googleProvider: GoogleAuthProvider;
+// Pola Singleton yang lebih aman untuk Next.js
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// Cegah inisialisasi jika API Key belum ada (misal saat build time di Docker tanpa ARG)
-if (!firebaseConfig.apiKey) {
-  // Return dummy atau null saat build untuk mencegah crash "invalid-api-key"
-  app = {} as FirebaseApp;
-  auth = {} as Auth;
-  googleProvider = new GoogleAuthProvider();
-} else {
-  // Pola Singleton untuk Firebase App
-  app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  auth = getAuth(app);
-  googleProvider = new GoogleAuthProvider();
-}
+// Inisialisasi Auth dan Provider secara langsung
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
+
+// Tambahkan konfigurasi tambahan jika perlu agar popup tidak terblokir
+googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 export { auth, googleProvider };
