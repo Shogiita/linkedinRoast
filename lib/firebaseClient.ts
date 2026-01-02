@@ -1,4 +1,3 @@
-// shogiita/linkedinroast/linkedinRoast-a3e34660214acb9cdbc8e4abe9e4ac556175d88e/lib/firebaseClient.ts
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, Auth } from "firebase/auth";
 
@@ -11,13 +10,12 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
-// Pastikan kode hanya berjalan jika API Key tersedia
+// Cek apakah config valid (mencegah crash saat build/deploy jika env belum set)
 const isConfigValid = !!firebaseConfig.apiKey;
 
 const app = isConfigValid 
   ? (getApps().length === 0 ? initializeApp(firebaseConfig) : getApp())
   : null;
 
-// Ekspor instance dengan pengecekan null untuk mencegah crash saat build
-export const auth = app ? getAuth(app) : ({} as Auth);
+export const auth = app ? getAuth(app) : null;
 export const googleProvider = new GoogleAuthProvider();

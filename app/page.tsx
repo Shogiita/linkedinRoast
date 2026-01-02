@@ -27,6 +27,7 @@ export default function Home() {
   const [roastText, setRoastText] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Load Font
   useEffect(() => {
     const link = document.createElement('link');
     link.href = 'https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap';
@@ -34,7 +35,14 @@ export default function Home() {
     document.head.appendChild(link);
   }, []);
 
+  // Auth Observer - FIX CRASH DISINI
   useEffect(() => {
+    if (!auth) {
+      console.warn("Firebase Auth belum siap. Cek Environment Variables.");
+      setAuthLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (currentUser: User | null) => {
       setUser(currentUser);
       setAuthLoading(false);
@@ -43,6 +51,10 @@ export default function Home() {
   }, []);
 
   const handleLogin = async () => {
+    if (!auth) {
+        setError("Konfigurasi Firebase belum dimuat (Cek .env).");
+        return;
+    }
     try {
       setError('');
       await signInWithPopup(auth, googleProvider);
@@ -53,6 +65,7 @@ export default function Home() {
   };
 
   const handleLogout = async () => {
+    if (!auth) return;
     try {
       await signOut(auth);
       setSelectedFile(null);
@@ -115,7 +128,7 @@ export default function Home() {
     }
   };
 
-  // Parse annotations dari text AI
+  // --- LOGIKA UTILS CANVAS ---
   const parseAnnotations = (text: string, imgWidth: number, imgHeight: number): Annotation[] => {
     const annotations: Annotation[] = [];
     const lines = text.split('\n').filter(l => l.trim());
@@ -128,7 +141,6 @@ export default function Home() {
       let type: AnnotationType = 'MARGIN';
       let cleanText = line;
       
-      // Detect annotation type
       if (line.includes('[ARROW]')) {
         type = 'ARROW';
         cleanText = line.replace(/\[ARROW\]/gi, '').trim();
@@ -149,26 +161,22 @@ export default function Home() {
         cleanText = line.replace(/\[BIG X\]/gi, '').trim();
       }
       
-      // Random positioning dengan slight variation
       const baseY = padding + (index * usableHeight / lines.length);
       const randomY = baseY + (Math.random() - 0.5) * 60;
       
       let x = padding;
-      // Margin notes go to the right side sometimes
       if (type === 'MARGIN' && Math.random() > 0.5) {
         x = imgWidth - padding - 200;
       } else {
         x = padding + Math.random() * (usableWidth * 0.3);
       }
       
-      // Font size variation based on type
       const baseFontSize = Math.max(20, Math.floor(imgWidth / 40));
       let fontSize = baseFontSize;
       if (type === 'CIRCLE' || type === 'BIG X') fontSize *= 1.3;
       if (type === 'MARGIN') fontSize *= 0.9;
       
-      // Slight rotation for hand-drawn effect
-      const rotation = (Math.random() - 0.5) * 0.08; // -0.04 to 0.04 radians (~2-3 degrees)
+      const rotation = (Math.random() - 0.5) * 0.08; 
       
       annotations.push({
         type,
@@ -183,7 +191,6 @@ export default function Home() {
     return annotations;
   };
 
-  // Draw arrow
   const drawArrow = (ctx: CanvasRenderingContext2D, fromX: number, fromY: number, toX: number, toY: number) => {
     const headlen = 15;
     const angle = Math.atan2(toY - fromY, toX - fromX);
@@ -197,14 +204,12 @@ export default function Home() {
     ctx.stroke();
   };
 
-  // Draw circle annotation
   const drawCircle = (ctx: CanvasRenderingContext2D, x: number, y: number, radius: number) => {
     ctx.beginPath();
     ctx.arc(x, y, radius, 0, Math.PI * 2);
     ctx.stroke();
   };
 
-  // Draw underline with wobble
   const drawUnderline = (ctx: CanvasRenderingContext2D, x: number, y: number, width: number) => {
     ctx.beginPath();
     ctx.moveTo(x, y);
@@ -214,7 +219,6 @@ export default function Home() {
     ctx.stroke();
   };
 
-  // Draw X mark
   const drawX = (ctx: CanvasRenderingContext2D, x: number, y: number, size: number) => {
     ctx.beginPath();
     ctx.moveTo(x - size, y - size);
@@ -224,7 +228,6 @@ export default function Home() {
     ctx.stroke();
   };
 
-  // Wrap text
   const wrapText = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] => {
     const words = text.split(' ');
     const lines: string[] = [];
@@ -244,7 +247,7 @@ export default function Home() {
     return lines;
   };
 
-  // Main canvas rendering effect
+  // --- LOGIKA UTAMA RENDER CANVAS ---
   useEffect(() => {
     if (roastText && selectedFile && canvasRef.current) {
       document.fonts.ready.then(() => {
@@ -260,44 +263,33 @@ export default function Home() {
           canvas.width = img.width;
           canvas.height = img.height;
           
-          // Draw original image
           ctx.drawImage(img, 0, 0);
           
-          // Parse annotations
           const annotations = parseAnnotations(roastText, img.width, img.height);
           
-          // Setup base style
           ctx.strokeStyle = "#ff0000";
           ctx.fillStyle = "#ff0000";
           ctx.lineWidth = 3;
           
-          // Draw each annotation
           annotations.forEach(annotation => {
             ctx.save();
-            
-            // Set font
             ctx.font = `${annotation.fontSize}px "Patrick Hand", "Comic Sans MS", cursive`;
             ctx.textBaseline = "top";
             
-            // Apply rotation
             ctx.translate(annotation.x, annotation.y);
             ctx.rotate(annotation.rotation);
             
-            // Wrap text
             const maxWidth = img.width * 0.4;
             const lines = wrapText(ctx, annotation.text, maxWidth);
             const lineHeight = annotation.fontSize * 1.2;
             
-            // Draw based on type
             if (annotation.type === 'ARROW') {
-              // Draw arrow first
               ctx.translate(-annotation.x, -annotation.y);
               const arrowStartX = annotation.x - 30;
               const arrowEndX = annotation.x - 5;
               drawArrow(ctx, arrowStartX, annotation.y + 10, arrowEndX, annotation.y + 10);
               ctx.translate(annotation.x, annotation.y);
               
-              // Then text
               lines.forEach((line, i) => {
                 ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
                 ctx.lineWidth = 4;
@@ -307,7 +299,6 @@ export default function Home() {
               });
               
             } else if (annotation.type === 'CIRCLE') {
-              // Draw circle around text area
               const textWidth = ctx.measureText(annotation.text).width;
               ctx.translate(-annotation.x, -annotation.y);
               drawCircle(ctx, annotation.x + textWidth / 2, annotation.y + annotation.fontSize / 2, Math.max(textWidth, annotation.fontSize) * 0.7);
@@ -330,14 +321,12 @@ export default function Home() {
                 ctx.strokeStyle = "#ff0000";
                 ctx.fillText(line, 0, i * lineHeight);
                 
-                // Draw underline
                 ctx.translate(-annotation.x, -annotation.y);
                 drawUnderline(ctx, annotation.x, annotation.y + (i + 1) * lineHeight - 5, width);
                 ctx.translate(annotation.x, annotation.y);
               });
               
             } else if (annotation.type === 'BIG X') {
-              // Draw big X
               ctx.translate(-annotation.x, -annotation.y);
               drawX(ctx, annotation.x, annotation.y + annotation.fontSize, annotation.fontSize * 1.5);
               ctx.translate(annotation.x, annotation.y);
@@ -351,7 +340,6 @@ export default function Home() {
               });
               
             } else {
-              // Default: MARGIN or STRIKETHROUGH
               lines.forEach((line, i) => {
                 ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
                 ctx.lineWidth = 4;
@@ -368,7 +356,6 @@ export default function Home() {
                 }
               });
             }
-            
             ctx.restore();
           });
           
@@ -398,7 +385,7 @@ export default function Home() {
     }
   };
 
-  if (authLoading) return <div className="flex h-screen justify-center items-center bg-gray-100"><div className="spinner"></div></div>;
+  if (authLoading) return <div className="flex h-screen justify-center items-center bg-gray-100"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500"></div></div>;
 
   if (!user) {
     return (
@@ -410,7 +397,7 @@ export default function Home() {
           <p className="text-gray-600 mb-8 leading-relaxed">AI Roasting Level Tinggi.<br/>Siapkan mental.</p>
           {error && <p className="text-red-500 text-sm mb-4 bg-red-50 p-2 rounded">{error}</p>}
           <button onClick={handleLogin} className="flex items-center justify-center w-full bg-white border border-gray-300 rounded-full p-3 shadow-sm hover:shadow-md transition-all active:scale-95 text-gray-700 font-medium">
-            <Image src="/image/google.png" alt="G" width={24} height={24} className="mr-3"/> Sign in with Google
+             <span className="mr-3 font-bold text-blue-500">G</span> Sign in with Google
           </button>
         </div>
       </div>

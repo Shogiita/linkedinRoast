@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Pastikan API Key sudah benar di .env.local
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
 
 const PRIORITY_MODELS = [
@@ -10,6 +9,7 @@ const PRIORITY_MODELS = [
   "models/gemini-2.5-flash",
   "models/gemini-2.0-flash",      
 ];
+
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,7 +23,6 @@ export async function POST(req: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const base64Image = Buffer.from(arrayBuffer).toString('base64');
     
-    // --- PERBAIKAN PROMPT ---
     const prompt = `
       Act as a visual analyzer. Generate TEXT annotations for a LinkedIn profile roast.
       
