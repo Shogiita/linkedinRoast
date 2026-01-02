@@ -1,24 +1,27 @@
 steps:
-  # Build image Docker dengan --build-arg
+  # 1. Build image Docker dengan --build-arg
+  # Ini penting agar NEXT_PUBLIC terbaca saat 'npm run build' berjalan di dalam Docker
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
       - '-t'
       - 'gcr.io/$PROJECT_ID/linkedin-roast'
-      - '--build-arg=GOOGLE_API_KEY=${GOOGLE_API_KEY}'
-      - '--build-arg=NEXT_PUBLIC_FIREBASE_API_KEY=${NEXT_PUBLIC_FIREBASE_API_KEY}'
-      - '--build-arg=NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}'
-      - '--build-arg=NEXT_PUBLIC_FIREBASE_PROJECT_ID=${NEXT_PUBLIC_FIREBASE_PROJECT_ID}'
-      - '--build-arg=NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}'
-      - '--build-arg=NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}'
-      - '--build-arg=NEXT_PUBLIC_FIREBASE_APP_ID=${NEXT_PUBLIC_FIREBASE_APP_ID}'
+      # Menggunakan $_VARIABLE (Substitusi dari Trigger)
+      - '--build-arg=GOOGLE_API_KEY=$_GOOGLE_API_KEY'
+      - '--build-arg=NEXT_PUBLIC_FIREBASE_API_KEY=$_NEXT_PUBLIC_FIREBASE_API_KEY'
+      - '--build-arg=NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=$_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN'
+      - '--build-arg=NEXT_PUBLIC_FIREBASE_PROJECT_ID=$_NEXT_PUBLIC_FIREBASE_PROJECT_ID'
+      - '--build-arg=NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=$_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET'
+      - '--build-arg=NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=$_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID'
+      - '--build-arg=NEXT_PUBLIC_FIREBASE_APP_ID=$_NEXT_PUBLIC_FIREBASE_APP_ID'
       - '.'
 
-  # Push image ke Container Registry
+  # 2. Push image ke Container Registry
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'gcr.io/$PROJECT_ID/linkedin-roast']
 
-  # Deploy ke Cloud Run
+  # 3. Deploy ke Cloud Run
+  # Kita set environment vars runtime disini juga untuk memastikan konsistensi
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
@@ -32,17 +35,22 @@ steps:
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
+      # Ini menyuntikkan variable ke Cloud Run Environment (Runtime)
       - '--set-env-vars'
-      - 'GOOGLE_API_KEY=${GOOGLE_API_KEY}'
+      - 'GOOGLE_API_KEY=$_GOOGLE_API_KEY'
+      - '--set-env-vars'
+      - 'NEXT_PUBLIC_FIREBASE_API_KEY=$_NEXT_PUBLIC_FIREBASE_API_KEY'
+      # ... (tambahkan set-env-vars lain jika perlu tersedia di process.env server side)
 
 images:
   - 'gcr.io/$PROJECT_ID/linkedin-roast'
 
+# Ini adalah definisi variable yang WAJIB kamu isi di settingan Cloud Build Trigger
 substitutions:
-  GOOGLE_API_KEY: ''
-  NEXT_PUBLIC_FIREBASE_API_KEY: ''
-  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ''
-  NEXT_PUBLIC_FIREBASE_PROJECT_ID: ''
-  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ''
-  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ''
-  NEXT_PUBLIC_FIREBASE_APP_ID: ''
+  _GOOGLE_API_KEY: ''
+  _NEXT_PUBLIC_FIREBASE_API_KEY: ''
+  _NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ''
+  _NEXT_PUBLIC_FIREBASE_PROJECT_ID: ''
+  _NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ''
+  _NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ''
+  _NEXT_PUBLIC_FIREBASE_APP_ID: ''
