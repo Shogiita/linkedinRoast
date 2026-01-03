@@ -37,7 +37,7 @@ export default function Home() {
   // Auth Observer - FIX CRASH DISINI
   useEffect(() => {
     if (!auth) {
-      console.warn("Firebase Auth belum siap. Cek Environment Variables.");
+      console.warn("Firebase Auth is not ready yet. Check Environment Variables.");
       setAuthLoading(false);
       return;
     }
@@ -51,7 +51,7 @@ export default function Home() {
 
   const handleLogin = async () => {
     if (!auth) {
-        setError("Konfigurasi Firebase belum dimuat (Cek .env).");
+        setError("Firebase configuration not yet loaded (Check .env).");
         return;
     }
     try {
@@ -59,7 +59,7 @@ export default function Home() {
       await signInWithPopup(auth, googleProvider);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown error";
-      setError("Login gagal: " + message);
+      setError("Login failed: " + message);
     }
   };
 
@@ -79,7 +79,7 @@ export default function Home() {
     const file = e.target.files?.[0];
     if (file) {
       if (!file.type.startsWith('image/')) {
-        setError('Mohon upload file gambar.');
+        setError('Please upload image files.');
         return;
       }
       setSelectedFile(file);
@@ -109,7 +109,7 @@ export default function Home() {
         const errorText = await response.text(); 
         try {
           const errorJson = JSON.parse(errorText);
-          throw new Error(errorJson.error || 'Terjadi kesalahan pada AI');
+          throw new Error(errorJson.error || 'Error on AI');
         } catch (e) {
           throw new Error(`Gagal: ${e}, ${errorText.slice(0, 50)}...`); 
         }
@@ -121,7 +121,7 @@ export default function Home() {
     } catch (err: unknown) {
       console.error(err);
       const message = err instanceof Error ? err.message : String(err);
-      setError('Gagal roasting: ' + message);
+      setError('Roasting Failed: ' + message);
     } finally {
       setIsRoasting(false);
     }
@@ -393,7 +393,7 @@ export default function Home() {
           <div className="absolute top-0 left-0 w-full h-2 bg-[#d93025]"></div>
           <h1 className="text-3xl font-black text-[#d93025] mb-2 transform -rotate-2" style={{fontFamily: 'cursive'}}>WARNING!</h1>
           <h2 className="text-2xl font-bold mb-4 text-gray-800">LinkedIn Roast Arena</h2>
-          <p className="text-gray-600 mb-8 leading-relaxed">AI Roasting Level Tinggi.<br/>Siapkan mental.</p>
+          <p className="text-gray-600 mb-8 leading-relaxed">High Level AI Roasting.<br/>Prepare mentally.</p>
           {error && <p className="text-red-500 text-sm mb-4 bg-red-50 p-2 rounded">{error}</p>}
           <button onClick={handleLogin} className="flex items-center justify-center w-full bg-white border border-gray-300 rounded-full p-3 shadow-sm hover:shadow-md transition-all active:scale-95 text-gray-700 font-medium">
              <span className="mr-3 font-bold text-blue-500">G</span> Sign in with Google
@@ -413,7 +413,7 @@ export default function Home() {
       <div className="container mx-auto px-4 max-w-4xl">
         {!roastText && (
           <div className="bg-white p-8 rounded-xl shadow-lg text-center">
-            <h2 className="text-2xl font-bold mb-6">Upload Profil LinkedIn</h2>
+            <h2 className="text-2xl font-bold mb-6">Upload LinkedIn Profile</h2>
             <div className="flex items-center justify-center w-full mb-6">
                 <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors relative overflow-hidden">
                     {previewUrl ? (
@@ -421,7 +421,7 @@ export default function Home() {
                       <img src={previewUrl} alt="Preview" className="absolute inset-0 w-full h-full object-contain p-4" style={{opacity: isRoasting ? 0.5 : 1}} />
                     ) : (
                       <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                          <p className="mb-2 text-sm text-gray-500 font-semibold">Klik untuk upload</p>
+                          <p className="mb-2 text-sm text-gray-500 font-semibold">Click to upload</p>
                       </div>
                     )}
                     <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} disabled={isRoasting} />
@@ -435,7 +435,7 @@ export default function Home() {
                 !selectedFile || isRoasting ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#d93025] hover:bg-red-700 shadow-md'
               }`}
             >
-              {isRoasting ? "Sedang Menganalisa..." : "ROAST NOW"}
+              {isRoasting ? "Currently Analyzing..." : "ROAST NOW"}
             </button>
           </div>
         )}
