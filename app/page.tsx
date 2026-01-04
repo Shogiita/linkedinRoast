@@ -442,14 +442,19 @@ export default function Home() {
 
         {roastText && (
           <div className="bg-white p-8 rounded-xl shadow-lg text-center">
-             <h2 className="text-3xl font-black text-[#d93025] mb-2" style={{fontFamily: '"Patrick Hand", cursive'}}>HASIL ROASTING</h2>
+             <h2 className="text-3xl font-black text-[#d93025] mb-2" style={{fontFamily: '"Patrick Hand", cursive'}}>ROASTING RESULT</h2>
              <div className="relative rounded-lg overflow-hidden border-4 border-[#d93025] shadow-xl mb-8 bg-gray-800 flex justify-center items-center">
                 <canvas ref={canvasRef} className="max-w-full h-auto mx-auto" style={{ maxHeight: '80vh' }}></canvas>
              </div>
-             <div className="flex gap-4 justify-center">
-               <button onClick={handleDownload} className="bg-gray-800 text-white px-6 py-3 rounded-full hover:bg-gray-900 transition-colors font-medium">Download Image</button>
-               <button onClick={() => { setRoastText(null); }} className="bg-white text-gray-700 border border-gray-300 px-6 py-3 rounded-full hover:bg-gray-50 transition-colors font-medium">Coba Lagi</button>
-             </div>
+             <div className="flex flex-col gap-4 justify-center">
+                <div className="flex gap-4 justify-center">
+                  <button onClick={handleDownload} className="bg-gray-800 text-white px-6 py-3 rounded-full hover:bg-gray-900 transition-colors font-medium">Download Image</button>
+                  <button onClick={() => { setRoastText(null); }} className="bg-white text-gray-700 border border-gray-300 px-6 py-3 rounded-full hover:bg-gray-50 transition-colors font-medium">Try Again</button>
+                </div>
+                <p>By using this tool, you agree that all roasts are provided for fun and personal growth only. These results must not be used to bully others or engage in any form of digital harassment.</p>
+              </div>
+
+             
           </div>
         )}
       </div>
