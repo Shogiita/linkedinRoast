@@ -588,7 +588,7 @@ export default function Home() {
                 </div>
             ) : (
                 <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200">
-                    <p className="text-slate-400">No roast history yet. Try roasting someone!</p>
+                    <p className="text-slate-400">No roast history yet.</p>
                 </div>
             )}
         </div>
